@@ -1,5 +1,6 @@
 """Test cases for the CLI commands."""
 
+import os
 import pytest
 import numpy as np
 from click.testing import CliRunner
@@ -21,6 +22,13 @@ def test_cli_help(runner: CliRunner) -> None:
     assert "Np Dist2 - A toolkit for nanoparticle simulation analysis" in result.output
 
 
+def test_cli_short_help(runner: CliRunner) -> None:
+    """Test that the main CLI short help works."""
+    result = runner.invoke(main, ['-h'])
+    assert result.exit_code == 0
+    assert "Np Dist2 - A toolkit for nanoparticle simulation analysis" in result.output
+
+
 def test_time_avg_help(runner: CliRunner) -> None:
     """Test that the time-avg command help works."""
     result = runner.invoke(main, ['time-avg', '--help'])
@@ -28,9 +36,23 @@ def test_time_avg_help(runner: CliRunner) -> None:
     assert "Averages atomic positions over simulation timesteps" in result.output
 
 
+def test_time_avg_short_help(runner: CliRunner) -> None:
+    """Test that the time-avg command short help works."""
+    result = runner.invoke(main, ['time-avg', '-h'])
+    assert result.exit_code == 0
+    assert "Averages atomic positions over simulation timesteps" in result.output
+
+
 def test_plot_lat_help(runner: CliRunner) -> None:
     """Test that the plot-lat command help works."""
     result = runner.invoke(main, ['plot-lat', '--help'])
+    assert result.exit_code == 0
+    assert "Plot lattice parameters vs radial distance" in result.output
+
+
+def test_plot_lat_short_help(runner: CliRunner) -> None:
+    """Test that the plot-lat command short help works."""
+    result = runner.invoke(main, ['plot-lat', '-h'])
     assert result.exit_code == 0
     assert "Plot lattice parameters vs radial distance" in result.output
 
@@ -113,11 +135,6 @@ def test_plot_dist_with_options(runner: CliRunner, tmp_path: Path) -> None:
     output_file = tmp_path / "dist_plot.png"
 
     result = runner.invoke(main, ['plot-dist', str(input_file), '--r-cyl', '2.5', '--output', str(output_file)])
-    
-    # Print the result output for debugging
-    print(f"Exit code: {result.exit_code}")
-    print(f"Output: {result.output}")
-    print(f"Exception: {result.exception}")
 
     assert result.exit_code == 0
     assert "Distance distribution plot saved to:" in result.output

@@ -10,7 +10,7 @@ FCC_AG_LATTICE_CONSTANT = 4.0896
 FCC_IDEAL_DENSITY = 4 / (FCC_AG_LATTICE_CONSTANT**3)
 
 
-@click.group()
+@click.group(context_settings=dict(help_option_names=['--help', '-h']))
 @click.version_option()
 def main() -> None:
     """Np Dist2 - A toolkit for nanoparticle simulation analysis."""
