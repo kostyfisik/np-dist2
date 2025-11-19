@@ -338,7 +338,7 @@ def calculate_lattice_parameter_distribution(
 
     # First, calculate the effective radius of the particle
     effective_radius, _ = calculate_effective_radius(atoms, num_directions, cylinder_radius)
-    
+
     if effective_radius == 0.0:
         return np.array([]), np.array([])
 
@@ -358,24 +358,24 @@ def calculate_lattice_parameter_distribution(
 
         # Calculate radial distances for atoms in this direction
         radial_distances_raw = np.linalg.norm(cylinder_atoms, axis=1)
-        
+
         if len(radial_distances_raw) == 0:
             continue
-        
+
         # Find maximum radius in this direction
         r_max_direction = np.max(radial_distances_raw)
-        
+
         if r_max_direction == 0.0:
             continue
-        
+
         # Normalize radii: shift and scale so the outermost atom is at effective_radius
         # Formula: r_normalized = (r_raw / r_max_direction) * effective_radius
         # This ensures the outermost atom in each direction is at the effective radius
-        
+
         # Store temporary results for this direction
         direction_r_normalized = []
         direction_a_local = []
-        
+
         # For each atom in the cylinder
         for idx, cylinder_atom in enumerate(cylinder_atoms):
             # Find the atom's index in the original array
@@ -394,14 +394,14 @@ def calculate_lattice_parameter_distribution(
 
             # Get raw radial distance
             r_raw = radial_distances_raw[idx]
-            
+
             # Normalize radius relative to effective radius
             r_normalized = (r_raw / r_max_direction) * effective_radius
-            
+
             # Store results for this atom
             direction_r_normalized.append(r_normalized)
             direction_a_local.append(a_local)
-        
+
         # Add all atoms from this direction to the combined dataset
         # (No negative radii with this normalization approach since we're scaling, not shifting)
         all_r_normalized.extend(direction_r_normalized)
