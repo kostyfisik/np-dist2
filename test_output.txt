@@ -1,0 +1,21 @@
+Effective Radius Analysis Results
+================================================================================
+Input directory: full_data/res-2025-01-13
+Number of directions: 5000
+Cylinder radius: 5.0 Å
+================================================================================
+
+Filename                                 Eff. Radius (Å)      Std. Dev (Å)        
+--------------------------------------------------------------------------------
+Ag100angs_avg101.npy                     50.220               0.325               
+Ag30angs_avg101.npy                      15.504               0.328               
+Ag53angs_avg101.npy                      27.168               0.269               
+Ag78angs_avg101.npy                      39.158               0.343               
+--------------------------------------------------------------------------------
+
+Summary Statistics:
+  Files processed successfully: 4
+  Mean effective radius: 33.012 Å
+  Median effective radius: 33.163 Å
+  Min effective radius: 15.504 Å
+  Max effective radius: 50.220 Å
