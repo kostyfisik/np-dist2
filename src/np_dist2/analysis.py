@@ -313,7 +313,16 @@ def calculate_lattice_parameter_distribution(
 
     Samples multiple random directions and for each direction, identifies atoms
     within a cylinder. For each such atom, calculates the local lattice parameter
-    as the average distance to its near neighbors.
+    as the average distance to its near neighbors. Radial distances are normalized
+    so that the outermost atom in each direction is at the effective radius.
+
+    The particle is not perfectly spherical relative to its center of mass, so
+    this function:
+    1. Calculates the effective radius using all directions
+    2. For each direction, normalizes radial distances so the outermost atom
+       is at the effective radius
+    3. Removes atoms with negative normalized radii
+    4. Combines all directions into a single dataset
 
     Args:
         atoms: Array of shape (n_atoms, 3) containing atomic positions
@@ -322,16 +331,22 @@ def calculate_lattice_parameter_distribution(
 
     Returns:
         Tuple of (radial_distances, lattice_parameters) where both are 1D arrays
-        containing the radial position and local lattice parameter for each sampled atom
+        containing the normalized radial position and local lattice parameter for each sampled atom
     """
     if atoms.size == 0:
+        return np.array([]), np.array([])
+
+    # First, calculate the effective radius of the particle
+    effective_radius, _ = calculate_effective_radius(atoms, num_directions, cylinder_radius)
+    
+    if effective_radius == 0.0:
         return np.array([]), np.array([])
 
     # Generate random directions
     directions = generate_random_directions(num_directions)
 
     # Initialize lists to collect results
-    all_r = []
+    all_r_normalized = []
     all_a_local = []
 
     for direction in directions:
@@ -341,10 +356,29 @@ def calculate_lattice_parameter_distribution(
         if cylinder_atoms.size == 0:
             continue
 
+        # Calculate radial distances for atoms in this direction
+        radial_distances_raw = np.linalg.norm(cylinder_atoms, axis=1)
+        
+        if len(radial_distances_raw) == 0:
+            continue
+        
+        # Find maximum radius in this direction
+        r_max_direction = np.max(radial_distances_raw)
+        
+        if r_max_direction == 0.0:
+            continue
+        
+        # Normalize radii: shift and scale so the outermost atom is at effective_radius
+        # Formula: r_normalized = (r_raw / r_max_direction) * effective_radius
+        # This ensures the outermost atom in each direction is at the effective radius
+        
+        # Store temporary results for this direction
+        direction_r_normalized = []
+        direction_a_local = []
+        
         # For each atom in the cylinder
-        for cylinder_atom in cylinder_atoms:
+        for idx, cylinder_atom in enumerate(cylinder_atoms):
             # Find the atom's index in the original array
-            # We need to match positions
             atom_index = np.where(np.all(atoms == cylinder_atom, axis=1))[0][0]
 
             # Find near neighbors
@@ -358,14 +392,22 @@ def calculate_lattice_parameter_distribution(
             distances = np.linalg.norm(neighbor_positions - cylinder_atom, axis=1)
             a_local = np.mean(distances)
 
-            # Calculate radial distance of this atom
-            r = np.linalg.norm(cylinder_atom)
+            # Get raw radial distance
+            r_raw = radial_distances_raw[idx]
+            
+            # Normalize radius relative to effective radius
+            r_normalized = (r_raw / r_max_direction) * effective_radius
+            
+            # Store results for this atom
+            direction_r_normalized.append(r_normalized)
+            direction_a_local.append(a_local)
+        
+        # Add all atoms from this direction to the combined dataset
+        # (No negative radii with this normalization approach since we're scaling, not shifting)
+        all_r_normalized.extend(direction_r_normalized)
+        all_a_local.extend(direction_a_local)
 
-            # Store results
-            all_r.append(r)
-            all_a_local.append(a_local)
-
-    return np.array(all_r), np.array(all_a_local)
+    return np.array(all_r_normalized), np.array(all_a_local)
 
 
 def convert_lattice_to_density(
