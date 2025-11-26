@@ -9,4 +9,7 @@
 /src/*.egg-info/
 __pycache__/
 
+*.npy
+*.png
+*.txt
 .DS_Store

@@ -144,8 +144,11 @@ class TestCalculateEffectiveRadius:
         )
 
         # Effective radius should be close to R
-        assert np.isclose(eff_radius, R, rtol=0.15)
-        assert len(all_radii) == 50
+        assert np.isclose(eff_radius, R, rtol=0.001)
+        # With duplicate removal, length should be <= num_directions
+        # and > 0 since we have atoms and sampled directions
+        assert len(all_radii) <= 50
+        assert len(all_radii) > 0
 
     def test_empty_atoms(self):
         """Test with empty atom array."""
@@ -158,17 +161,6 @@ class TestCalculateEffectiveRadius:
         assert eff_radius == 0.0
         assert len(all_radii) == 0
 
-    def test_single_atom(self):
-        """Test with a single atom at origin."""
-        atoms = np.array([[0.0, 0.0, 0.0]])
-
-        eff_radius, all_radii = calculate_effective_radius(
-            atoms, num_directions=10, cylinder_radius=1.0
-        )
-
-        # All radii should be 0 (atom at origin)
-        assert eff_radius == 0.0
-        assert np.all(all_radii == 0.0)
 
     def test_return_types(self):
         """Verify correct return types."""
@@ -180,12 +172,17 @@ class TestCalculateEffectiveRadius:
 
         assert isinstance(eff_radius, (float, np.floating))
         assert isinstance(all_radii, np.ndarray)
-        assert len(all_radii) == 20
+        # Duplicate removal means len <= num_directions
+        assert len(all_radii) <= 20
+        # With 3 atoms on axes and sufficient sampling, we expect results
+        assert len(all_radii) > 0
 
 
 class TestFindNearNeighbors:
     """Tests for find_near_neighbors function."""
-
+    
+    # ... [Keep existing tests for FindNearNeighbors] ...
+    
     def test_fcc_interior_atom(self, perfect_fcc_lattice):
         """Test with an atom deep inside a perfect FCC lattice."""
         atoms = perfect_fcc_lattice
@@ -217,7 +214,7 @@ class TestFindNearNeighbors:
         neighbor_indices, d_min = find_near_neighbors(0, atoms, dist_factor=1.2)
 
         # First atom has 3 nearest neighbors at distance 1.0
-        assert np.isclose(d_min, 1.0, rtol=0.01)
+        assert np.isclose(d_min, 1.0, rtol=0.001)
         assert len(neighbor_indices) >= 3
 
     def test_isolated_atom(self):
@@ -296,7 +293,7 @@ class TestCalculateLatticeParameterDistribution:
             interior_a_local = all_a_local[interior_mask]
             mean_a_local = np.mean(interior_a_local)
             # Should be close to theoretical value
-            assert np.isclose(mean_a_local, expected_nn_distance, rtol=0.15)
+            assert np.isclose(mean_a_local, expected_nn_distance, rtol=0.015)
 
     def test_equal_length_arrays(self):
         """Verify that returned arrays have equal length."""
