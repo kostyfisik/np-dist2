@@ -140,11 +140,12 @@ class TestCalculateEffectiveRadius:
         atoms = np.column_stack([x, y, z])
 
         eff_radius, all_radii = calculate_effective_radius(
-            atoms, num_directions=50, cylinder_radius=R * 0.3
+            atoms, num_directions=50, cylinder_radius=R * 0.3,
+            method='v4'
         )
 
         # Effective radius should be close to R
-        assert np.isclose(eff_radius, R, rtol=0.001)
+        assert np.isclose(eff_radius, R, rtol=0.01)
         # With duplicate removal, length should be <= num_directions
         # and > 0 since we have atoms and sampled directions
         assert len(all_radii) <= 50

@@ -404,7 +404,7 @@ def find_near_neighbors(
 
 
 def calculate_lattice_parameter_distribution(
-    atoms: np.ndarray, num_directions: int, cylinder_radius: float
+    atoms: np.ndarray, num_directions: int, cylinder_radius: float, dislocation_aware: bool = False
 ) -> tuple[np.ndarray, np.ndarray]:
     """
     Calculate local lattice parameters for atoms in cylindrical sections.
@@ -426,6 +426,9 @@ def calculate_lattice_parameter_distribution(
         atoms: Array of shape (n_atoms, 3) containing atomic positions
         num_directions: Number of random directions to sample
         cylinder_radius: Radius of the cylinder used for sampling
+        dislocation_aware: If True, uses 9-neighbor vs 12-neighbor comparison logic
+                           to detect dislocations. If False, uses standard nearest
+                           neighbor logic with dist_factor=1.2.
 
     Returns:
         Tuple of (radial_distances, lattice_parameters) where both are 1D arrays
@@ -482,16 +485,55 @@ def calculate_lattice_parameter_distribution(
             # Find the atom's index in the original array
             atom_index = np.where(np.all(atoms == cylinder_atom, axis=1))[0][0]
 
-            # Find near neighbors
-            neighbor_indices, d_min = find_near_neighbors(atom_index, atoms, dist_factor=1.2)
+            a_local = np.nan
 
-            if len(neighbor_indices) == 0:
+            if dislocation_aware:
+                # Dislocation Aware Mode
+                # Calculate distances to all other atoms
+                distances = np.linalg.norm(atoms - cylinder_atom, axis=1)
+                
+                # We need up to 12 nearest neighbors (excluding self)
+                # We select top 13 (self + 12 neighbors)
+                # Use np.argpartition for efficiency O(N) instead of full sort O(N log N)
+                k_needed = 13
+                if len(distances) >= k_needed:
+                    # Get indices of k smallest elements
+                    nearest_indices = np.argpartition(distances, k_needed-1)[:k_needed]
+                    nearest_dists = distances[nearest_indices]
+                    # Sort only the small subset
+                    nearest_dists.sort()
+                    
+                    # Exclude self (index 0, dist ~0)
+                    neighbors_all = nearest_dists[1:]
+                    
+                    # Get r9 (first 9 neighbors) and r12 (first 12 neighbors)
+                    r9_dists = neighbors_all[:9]
+                    r12_dists = neighbors_all[:12]
+                    
+                    r9 = np.mean(r9_dists)
+                    sigma9 = np.std(r9_dists)
+                    r12 = np.mean(r12_dists)
+                    
+                    # Condition: When r12 is not in range r9 +- sigma9 it is a dislocation
+                    # Dislocation -> use r9
+                    # Else -> use r12
+                    if abs(r12 - r9) > sigma9/2:
+                        a_local = r9
+                    else:
+                        a_local = r12
+            else:
+                # Standard Mode
+                # Find near neighbors using dist_factor
+                neighbor_indices, d_min = find_near_neighbors(atom_index, atoms, dist_factor=1.2)
+
+                if len(neighbor_indices) > 0:
+                    # Calculate average distance to near neighbors (local lattice parameter)
+                    neighbor_positions = atoms[neighbor_indices]
+                    distances = np.linalg.norm(neighbor_positions - cylinder_atom, axis=1)
+                    a_local = np.mean(distances)
+
+            if np.isnan(a_local):
                 continue
-
-            # Calculate average distance to near neighbors (local lattice parameter)
-            neighbor_positions = atoms[neighbor_indices]
-            distances = np.linalg.norm(neighbor_positions - cylinder_atom, axis=1)
-            a_local = np.mean(distances)
 
             # Get raw radial distance (projected)
             r_raw = radial_distances_raw[idx]

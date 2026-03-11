@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.optimize import minimize
 from src.np_dist2.analysis import (
     calculate_lattice_parameter_distribution,
     convert_lattice_to_density
@@ -82,6 +83,26 @@ def process_file(
 
         print(f"  Saved data to {output_dir}")
 
+        # Optimize fit parameters against raw data (sorted)
+        sort_idx = np.argsort(radial_distances)
+        r_sorted = radial_distances[sort_idx]
+        density_sorted = densities[sort_idx]
+
+        left_mask = r_sorted <= (r_sorted[0] + r_sorted[-1]) / 2
+        core_init = float(np.mean(density_sorted[left_mask])) if np.any(left_mask) else 0.057
+        x0 = [1.0, core_init / CORE_REF, 1.0]
+        bounds = [(1e-6, None), (1e-6, None), (1.0 / WIDTH_REF, 7.0 / WIDTH_REF)]
+        result = minimize(density_fitness, x0=x0, args=(r_sorted, density_sorted),
+                          method='L-BFGS-B', bounds=bounds,
+                          options={'maxiter': 10000, 'ftol': 1e-15, 'gtol': 1e-15})
+        factor_opt = result.x[0] * FACTOR_REF
+        core_opt   = result.x[1] * CORE_REF
+        width_opt  = result.x[2] * WIDTH_REF
+        print(f"  Optimized fit: factor={factor_opt:.6f}, core={core_opt:.6f}, width={width_opt:.4f} "
+              f"(fitness={result.fun:.6f})")
+        print(f"  Convergence: success={result.success}, nit={result.nit}, nfev={result.nfev}")
+        print(f"  Message: {result.message}")
+
         # Calculate statistics
         stats = {
             'status': 'success',
@@ -93,18 +114,26 @@ def process_file(
             'lattice_std': np.std(lattice_params),
             'density_mean': np.mean(densities),
             'density_std': np.std(densities),
+            'fit_factor': factor_opt,
+            'fit_core': core_opt,
+            'fit_width': width_opt,
+            'fit_fitness': result.fun,
+            'fit_converged': result.success,
         }
 
         # Create plot
         if create_plot:
             print(f"  Creating plot...", end=" ", flush=True)
-            plot_file = output_dir / f"{base_name}_density_profile.png"
+            plot_file = output_dir / f"fit_{base_name}_density_profile.png"
             create_density_plot(
                 radial_distances,
                 densities,
                 lattice_params,
                 plot_file,
-                base_name
+                base_name,
+                factor_opt,
+                core_opt,
+                width_opt,
             )
             print(f"Saved to {plot_file.name}")
             stats['plot_file'] = str(plot_file)
@@ -118,15 +147,71 @@ def process_file(
         return {'status': 'error', 'message': str(e)}
 
 
+# Reference scale values for parameter normalisation (optimisation works around 1.0)
+FACTOR_REF = 0.000186
+CORE_REF   = 0.057636
+WIDTH_REF  = 4.2107
+
+
+def density_fitness(params: np.ndarray, vector_x: np.ndarray, density_data: np.ndarray) -> float:
+    """
+    Fitness function: RMSE between density_fit and raw density data.
+
+    params are normalised by (FACTOR_REF, CORE_REF, WIDTH_REF) so the optimizer
+    operates around unit values.  Evaluated only on the outer 15 Å.
+
+    Args:
+        params: [factor/FACTOR_REF, core/CORE_REF, width/WIDTH_REF]
+        vector_x: Sorted radial positions
+        density_data: Raw density values corresponding to vector_x
+
+    Returns:
+        Root mean squared error of (density_fit - density_data)
+    """
+    factor = params[0] * FACTOR_REF
+    core   = params[1] * CORE_REF
+    width  = params[2] * WIDTH_REF
+    R = vector_x[-1]
+    outer_mask = vector_x >= R - 15.0
+    vx = vector_x[outer_mask]
+    dd = density_data[outer_mask]
+    fit_vals = density_fit(vx, factor=factor, core=core, width=width)
+    return np.sqrt(np.mean((fit_vals - dd) ** 2))
+
+
+def density_fit(vector_x: np.ndarray, factor: float = 0.001, core: float = 0.057, width: float = 3) -> np.ndarray:
+    """
+    Piecewise fit function for density profile.
+
+    Constant at `core` from 0 to a = vector_x[-1] - width, then transitions
+    into a parabola centered at (a, core) with slope factor*(x-a)**2.
+
+    Args:
+        vector_x: Array of radial positions (must be sorted)
+        factor: Parabolic slope coefficient
+        core: Constant core density level
+        width: Width of the parabolic transition region at the surface
+
+    Returns:
+        Array of fitted density values
+    """
+    a = vector_x[-1] - width
+    y = np.where(vector_x <= a, core, core + factor * (vector_x - a) ** 2)
+    return y
+
+
 def create_density_plot(
     radial_distances: np.ndarray,
     densities: np.ndarray,
     lattice_params: np.ndarray,
     output_file: Path,
-    title: str
+    title: str,
+    factor: float,
+    core: float,
+    width: float,
 ):
     """
-    Create a plot showing density and lattice parameter vs radial distance.
+    Create a plot showing density and the optimized fit vs radial distance.
 
     Args:
         radial_distances: Array of radial positions
@@ -134,97 +219,34 @@ def create_density_plot(
         lattice_params: Array of local lattice parameters
         output_file: Path to save the plot
         title: Title for the plot
+        factor: Optimized parabolic slope coefficient
+        core: Optimized core density level
+        width: Optimized parabolic transition width
     """
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
+    fig, ax1 = plt.subplots(1, 1, figsize=(10, 5))
 
     # Sort data by radial distance for better visualization
     sort_idx = np.argsort(radial_distances)
     r_sorted = radial_distances[sort_idx]
     density_sorted = densities[sort_idx]
-    lattice_sorted = lattice_params[sort_idx]
 
-    # Plot 1: Density vs radius
+    # Plot: Density vs radius
     ax1.scatter(r_sorted, density_sorted, alpha=0.5, s=10, c='blue')
 
-    # Add binned average line with ±1 std
-    if len(r_sorted) > 10:
-        num_bins = min(50, len(r_sorted) // 10)
-        bin_edges = np.linspace(r_sorted.min(), r_sorted.max(), num_bins + 1)
-        bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
-        bin_means = []
-        bin_stds = []
+    fit_y = density_fit(r_sorted, factor=factor, core=core, width=width)
+    ax1.plot(r_sorted, fit_y, 'r-', linewidth=2,
+             label=f'fit (factor={factor:.4f}, core={core:.4f}, width={width:.2f})')
 
-        for i in range(num_bins):
-            mask = (r_sorted >= bin_edges[i]) & (r_sorted < bin_edges[i + 1])
-            if np.any(mask):
-                bin_means.append(np.mean(density_sorted[mask]))
-                bin_stds.append(np.std(density_sorted[mask]))
-            else:
-                bin_means.append(np.nan)
-                bin_stds.append(np.nan)
-
-        bin_means = np.array(bin_means)
-        bin_stds = np.array(bin_stds)
-
-        # Plot binned average and ±1 std band
-        ax1.plot(bin_centers, bin_means, 'r-', linewidth=2, label='Binned average', zorder=10)
-        ax1.fill_between(bin_centers, bin_means - bin_stds, bin_means + bin_stds,
-                         alpha=0.3, color='red', label='±1 std', zorder=5)
-
-        # Scale y-axis to match -1std to +1std range
-        valid_mask = ~np.isnan(bin_means) & ~np.isnan(bin_stds)
-        if np.any(valid_mask):
-            y_min = np.nanmin(bin_means[valid_mask] - bin_stds[valid_mask])
-            y_max = np.nanmax(bin_means[valid_mask] + bin_stds[valid_mask])
-            y_margin = (y_max - y_min) * 0.05  # 5% margin
-            ax1.set_ylim(y_min - y_margin, y_max + y_margin)
-
-        ax1.legend()
+    # Set y-axis limits based on fit range + 5% margin
+    fit_min, fit_max = fit_y.min(), fit_y.max()
+    margin = fit_max * 0.05
+    ax1.set_ylim(fit_min - margin, fit_max + margin)
 
     ax1.set_xlabel('Radial Distance (Å)', fontsize=12)
     ax1.set_ylabel('Local Ionic Density (atoms/Ų)', fontsize=12)
     ax1.set_title(f'Density Profile: {title}', fontsize=14, fontweight='bold')
+    ax1.legend()
     ax1.grid(True, alpha=0.3)
-
-    # Plot 2: Lattice parameter vs radius
-    ax2.scatter(r_sorted, lattice_sorted, alpha=0.5, s=10, c='green')
-
-    # Add binned average line with ±1 std
-    if len(r_sorted) > 10:
-        bin_means_lattice = []
-        bin_stds_lattice = []
-        for i in range(num_bins):
-            mask = (r_sorted >= bin_edges[i]) & (r_sorted < bin_edges[i + 1])
-            if np.any(mask):
-                bin_means_lattice.append(np.mean(lattice_sorted[mask]))
-                bin_stds_lattice.append(np.std(lattice_sorted[mask]))
-            else:
-                bin_means_lattice.append(np.nan)
-                bin_stds_lattice.append(np.nan)
-
-        bin_means_lattice = np.array(bin_means_lattice)
-        bin_stds_lattice = np.array(bin_stds_lattice)
-
-        # Plot binned average and ±1 std band
-        ax2.plot(bin_centers, bin_means_lattice, 'orange', linewidth=2, label='Binned average', zorder=10)
-        ax2.fill_between(bin_centers, bin_means_lattice - bin_stds_lattice,
-                         bin_means_lattice + bin_stds_lattice,
-                         alpha=0.3, color='orange', label='±1 std', zorder=5)
-
-        # Scale y-axis to match -1std to +1std range
-        valid_mask = ~np.isnan(bin_means_lattice) & ~np.isnan(bin_stds_lattice)
-        if np.any(valid_mask):
-            y_min = np.nanmin(bin_means_lattice[valid_mask] - bin_stds_lattice[valid_mask])
-            y_max = np.nanmax(bin_means_lattice[valid_mask] + bin_stds_lattice[valid_mask])
-            y_margin = (y_max - y_min) * 0.05  # 5% margin
-            ax2.set_ylim(y_min - y_margin, y_max + y_margin)
-
-        ax2.legend()
-
-    ax2.set_xlabel('Radial Distance (Å)', fontsize=12)
-    ax2.set_ylabel('Local Lattice Parameter (Å)', fontsize=12)
-    ax2.set_title('Lattice Parameter Distribution', fontsize=14, fontweight='bold')
-    ax2.grid(True, alpha=0.3)
 
     plt.tight_layout()
     plt.savefig(output_file, dpi=300, bbox_inches='tight')
@@ -309,6 +331,10 @@ Examples:
         if not any(suffix in f.stem for suffix in ['_radial_distances', '_lattice_params', '_densities'])
     ]
 
+    # Only run the target data sets
+    target_sets = ['Ag30angs_avg101', 'Ag53angs_avg101', 'Ag78angs_avg101', 'Ag100angs_avg101']
+    npy_files = [f for f in npy_files if f.stem in target_sets]
+
     if not npy_files:
         print(f"Error: No .npy files found in '{data_dir}'", file=sys.stderr)
         sys.exit(1)
@@ -348,6 +374,7 @@ Examples:
 
     successful = [r for r in results if r['status'] == 'success']
     failed = [r for r in results if r['status'] == 'error']
+    successful.sort(key=lambda r: r['r_max'])
 
     print(f"Total files: {len(results)}")
     print(f"Successfully processed: {len(successful)}")
@@ -371,6 +398,16 @@ Examples:
         print("-" * 80)
         print(f"\nOverall average density: {all_densities_mean:.4f} atoms/Ų")
         print(f"Overall average lattice parameter: {all_lattice_mean:.4f} Å")
+
+        print("\n" + "-" * 80)
+        print("FIT PARAMETERS SUMMARY")
+        print("-" * 80)
+        print(f"{'Filename':<40} {'R_max':>7}  {'factor':<12} {'core':<12} {'width':<10} {'fitness':<12} {'conv'}")
+        print("-" * 80)
+        for r in successful:
+            print(f"{r['filename']:<40} {r['r_max']:>7.2f}  {r['fit_factor']:<12.6f} {r['fit_core']:<12.6f} "
+                  f"{r['fit_width']:<10.4f} {r['fit_fitness']:<12.6f} {str(r['fit_converged'])}")
+        print("-" * 80)
 
     if failed:
         print("\n" + "-" * 80)
