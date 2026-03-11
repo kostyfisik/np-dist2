@@ -1,0 +1,47 @@
+{
+  "combined_factor": 0.00017208019449060935,
+  "combined_width": 4.430274179002915,
+  "combined_fitness": 0.0005767933411217897,
+  "datasets": [
+    {
+      "filename": "Ag30angs_avg101.npy",
+      "r_max": 14.765505333764457,
+      "num_atoms": 887,
+      "indiv_factor": 0.00014245831769395872,
+      "indiv_core": 0.05810479697749829,
+      "indiv_width": 4.986752300315884,
+      "indiv_fitness": 0.0005899861013953506,
+      "comb_core": 0.058167353594146085
+    },
+    {
+      "filename": "Ag53angs_avg101.npy",
+      "r_max": 26.656617417961534,
+      "num_atoms": 4897,
+      "indiv_factor": 0.00019562141253076488,
+      "indiv_core": 0.057754885624640505,
+      "indiv_width": 4.217486862517125,
+      "indiv_fitness": 0.0005697734138831144,
+      "comb_core": 0.05775279800748125
+    },
+    {
+      "filename": "Ag78angs_avg101.npy",
+      "r_max": 38.69797908657729,
+      "num_atoms": 14627,
+      "indiv_factor": 0.00019623876977015392,
+      "indiv_core": 0.05761928520430313,
+      "indiv_width": 4.1927060028027014,
+      "indiv_fitness": 0.0005602305008618655,
+      "comb_core": 0.057611727150262394
+    },
+    {
+      "filename": "Ag100angs_avg101.npy",
+      "r_max": 49.783808883661706,
+      "num_atoms": 30669,
+      "indiv_factor": 0.00016787923077410727,
+      "indiv_core": 0.057529040870493,
+      "indiv_width": 4.269170941802819,
+      "indiv_fitness": 0.0005713059583431909,
+      "comb_core": 0.05747754991974224
+    }
+  ]
+}
