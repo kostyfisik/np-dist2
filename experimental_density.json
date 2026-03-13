@@ -1,0 +1,12 @@
+{
+  "description": "Experimental ionic number densities for Ag nanoparticles",
+  "density_units": "10^28 m^-3",
+  "diameter_units": "Angstroms",
+  "note": "Keys match .npy filename stems. Convert to atoms/Ang^3: value * 1e-2",
+  "data": {
+    "Ag30angs_avg101":  5.958859916809,
+    "Ag53angs_avg101":  5.999807057147,
+    "Ag78angs_avg101":  6.085161360282,
+    "Ag100angs_avg101": 6.284947166252
+  }
+}
