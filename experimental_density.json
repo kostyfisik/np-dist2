@@ -4,9 +4,9 @@
   "diameter_units": "Angstroms",
   "note": "Keys match .npy filename stems. Convert to atoms/Ang^3: value * 1e-2",
   "data": {
-    "Ag30angs_avg101":  5.958859916809,
-    "Ag53angs_avg101":  5.999807057147,
-    "Ag78angs_avg101":  6.085161360282,
-    "Ag100angs_avg101": 6.284947166252
+    "Ag30angs_avg101":  { "density": 5.958859916809, "nominal_radius_angs": 15.0   },
+    "Ag53angs_avg101":  { "density": 5.999807057147, "nominal_radius_angs": 26.5   },
+    "Ag78angs_avg101":  { "density": 6.085161360282, "nominal_radius_angs": 39.0   },
+    "Ag100angs_avg101": { "density": 6.284947166252, "nominal_radius_angs": 50.0   }
   }
 }
